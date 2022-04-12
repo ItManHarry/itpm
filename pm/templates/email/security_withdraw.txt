@@ -1,0 +1,5 @@
+{{employee.name}}申请的安保权限({{security.name}})已到期，请及时取消该人员的{{security.name}}权限。
+
+    使用人:{{employee.name}} 安保权限:{{security.name}} 到期日期{{expire_date}}
+
+(该邮件为系统提醒邮件，无需回复！)

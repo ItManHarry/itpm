@@ -1,0 +1,26 @@
+{% from 'bootstrap/nav.html' import render_nav_item with context %}
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  {# 跳转主页，暂不使用 #}
+  {#<a class="navbar-brand" href="{{url_for('main.index')}}"><i class="bi bi-laptop"></i>&nbsp;&nbsp;IT&nbsp;统合管理系统</a>#}
+  <a class="navbar-brand" href="#"><i class="bi bi-laptop" style="font-size:1.5em;"></i></a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarScroll" aria-controls="navbarScroll" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+  <div class="collapse navbar-collapse" id="navbarScroll">
+    <ul class="navbar-nav mr-auto my-2 my-lg-0 navbar-nav-scroll" style="max-height: 100px;">
+      {% if current_user.authed_modules %}
+        {% for module in current_user.authed_modules %}
+          <li class="nav-item">
+              <a class="nav-link btn btn-outline-info {% if session.get('active_module') == module.id%}active{% endif %}" href="{{url_for('main.redirect_uri', module_id=module.id)}}">{{module.name}}</a>
+          </li>&nbsp;&nbsp;&nbsp;&nbsp;
+        {% endfor %}
+      {% endif %}
+    </ul>
+    <div class="d-flex">
+        {% if current_user.is_authenticated %}
+            <h5 class="text-secondary"><i class="bi bi-person"></i>&nbsp;{{current_user.user_name}}</h5>&nbsp;&nbsp;&nbsp;&nbsp;
+            <a class="btn btn-outline-success btn-sm" title="登出" href="{{url_for('auth.logout')}}"><i class="bi bi-box-arrow-right"></i></a>
+        {% endif %}
+    </div>
+  </div>
+</nav>

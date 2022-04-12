@@ -1,0 +1,266 @@
+{% extends 'base.html' %}
+{% from 'bootstrap/pagination.html' import render_pagination with context %}
+{% block link %}
+    {{static_file('css','css/bootstrap-datepicker3.min.css')}}
+{% endblock %}
+{% block scripts %}
+    {{static_file('js','js/bootstrap-datepicker.min.js')}}
+    {{static_file('js','js/bootstrap-datepicker.zh-CN.min.js')}}
+{% endblock %}
+{% block content %}
+{{current_location('')}}
+<div class="clearfix text-center">
+{% if get_flashed_messages() %}
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+      {% for message in get_flashed_messages() %}
+        <small>{{ message }}</small>
+      {% endfor %}
+      <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+        <span aria-hidden="true">&times;</span>
+      </button>
+    </div>
+{% endif %}
+</div>
+<form method="post">
+  <div class="row">
+    <div class="col-3 offset-4 text-right">
+        {{form.csrf_token}}
+        {{form.code(class='form-control', placeholder='职号')}}
+    </div>
+    <div class="col-3 text-right">
+        {{form.name(class='form-control', placeholder='姓名')}}
+    </div>
+    <div class="col-2 text-right">
+        <button class="btn btn-outline-info" type="submit"><i class="bi bi-search"></i>&nbsp;查找</button>
+    </div>
+  </div>
+</form>
+<br>
+<table class="table table-hover table-sm">
+  <thead>
+    <tr>
+        <th scope="col" width="5%">法人</th>
+        <th scope="col" width="15%">职号</th>
+        <th scope="col" width="15%">姓名</th>
+        <th scope="col" width="25%">部门</th>
+        <th scope="col" width="15%">邮箱</th>
+        <th scope="col" width="5%">状态</th>
+        <th scope="col" class="text-center" width="10%">Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% if employees %}
+        {% for employee in employees %}
+            <tr>
+                <td>{{employee.company.name}}</td>
+                <td>{{employee.code}}</td>
+                <td>{{employee.name}}</td>
+                <td>{{employee.department.name}}</td>
+                <td>{{employee.email if employee.email else '-'}}</td>
+                <td>{%if employee.active%}<span class="text-success">在用</span>{%else%}<span class="text-danger">停用</span>{%endif%}</td>
+                <td class="text-center">
+                    <button class="btn btn-link text-primary" title="安保授权" onclick="auth_securities('{{employee.name}}', '{{employee.id}}')"><i class="bi bi-shield-plus"></i></button>
+                    <button class="btn btn-link text-danger" title="取消授权" onclick="undo_auth('{{employee.id}}')"><i class="bi bi-shield-x"></i></button>
+                </td>
+            </tr>
+        {%endfor%}
+    {% else %}
+        <tr>
+            <td colspan="8" class="text-center"><small>没有记录!!!</small></td>
+        </tr>
+    {% endif %}
+  </tbody>
+</table>
+{{render_pagination(pagination, align='right')}}
+<!-- Modal -->
+<div class="modal fade" id="authModal" tabindex="-1" role="dialog" aria-labelledby="securityModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalTitle">&nbsp;</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+          <ul class="list-group" id="securities"></ul>
+          <table class="table table-bordered">
+              <thead>
+                <tr class="text-center">
+                  <th scope="col" width="10%">#</th>
+                  <th scope="col" width="45%">安保</th>
+                  <th scope="col" width="45%">到期日期</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% if securities %}
+                    {% for security in securities %}
+                    <tr class="text-center">
+                      <th scope="row">
+                          <div class="form-check">
+                              <input class="form-check-input" type="checkbox" id="{{security[0]}}" value="{{security[0]}}">
+                          </div>
+                      </th>
+                      <td id="{{'name'+security[0]}}">{{security[1]}}</td>
+                      <td><input type="text" class="form-control" id="{{'expire'+security[0]}}"></td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                <tr class="text-center">
+                    <th scope="row" colspan="3">安保信息为维护!</th>
+                </tr>
+                {% endif %}
+              </tbody>
+          </table>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" onclick="do_auth()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block script %}
+    {{ super() }}
+    $(function(){
+        //初始化时间控件
+        $("input[id^=expire]").each(function(){
+            init_date($(this).attr('id'))
+        })
+    })
+    var employee_id = ''
+    function auth_securities(name, id){
+        $('#modalTitle').text('当前雇员 : <'+name+'>')
+        employee_id = id
+        $.ajax({
+            type:'post',
+            url:'/employee/get_securities/'+id,
+            //data:JSON.stringify({code:$.trim($("#code").val()), name:$.trim($("#name").val()), password:$.trim($("#password").val())}),
+            contentType:'application/json;charset=UTF-8',
+            success:function(data){
+                //先清空之前设置的值
+                $(':checkbox').each(function(){
+                    $(this).prop('checked', false)
+                })
+                $("input[id^=expire]").each(function(){
+                    $(this).val('')
+                })
+                //根据已授权情况赋值
+                //alert('Authed : ' + data.authed_securities)
+                var authed = data.authed_securities
+                for(var i = 0; i < authed.length; i++){
+                    //alert(authed[i].security_id + ' - ' + authed[i].expire_date)
+                    $(':checkbox[id='+authed[i].security_id+']').prop('checked', true)
+                    $(':input[id=expire'+authed[i].security_id+']').val(authed[i].expire_date)
+                }
+                $('#authModal').modal('show')
+            },
+            error:function(){
+                $.alert({
+                   type:'red',
+                   title:'系统提示',
+                   content: '系统错误,请联系管理员',
+                   onClose:function(){
+
+                   }
+               })
+            }
+        })
+    }
+    //执行授权
+    function do_auth(){
+        var security_authed = []   // 授权安保信息
+        var expire_date = '', id = '', ok = true
+        $(':checkbox').each(function(){
+            if($(this).is(':checked')){
+                id = $(this).val()
+                expire_date = $('#expire'+id).val().trim()
+                if(expire_date == ''){
+                    ok = false
+                    return false
+                }
+                //保存安保id及到期日期
+                security_authed.push({'id': id, 'expire_date': $('#expire'+id).val()})
+            }
+        })
+        if(!ok){
+            $.alert({
+               type:'red',
+               title:'系统提示',
+               content: '('+$('td[id=name'+id+']').text()+')到期日期未选择!',
+               onClose:function(){
+               }
+            })
+        }else if(security_authed.length == 0){
+            $.alert({
+               type:'red',
+               title:'系统提示',
+               content: '请选择安保项目！',
+               onClose:function(){
+
+               }
+           })
+        }else{
+            $.ajax({
+                type:'post',
+                url:'/employee/auth',
+                data:JSON.stringify({employee_id:employee_id, security_authed:security_authed}),
+                contentType:'application/json;charset=UTF-8',
+                success:function(data){
+                    if(data.code == 1)
+                        $.alert({
+                           type:'green',
+                           title:'系统提示',
+                           content: data.message,
+                           onClose:function(){
+                                $('#authModal').modal('hide')
+                           }
+                       })
+
+                },
+                error:function(){
+                    $.alert({
+                       type:'red',
+                       title:'系统提示',
+                       content: '系统错误,请联系管理员',
+                       onClose:function(){
+
+                       }
+                   })
+                }
+            })
+        }
+    }
+    //取消授权
+    function undo_auth(employee_id){
+        $.ajax({
+            type:'post',
+            url:'/employee/undo_auth/'+employee_id,
+            //data:JSON.stringify({employee_id:employee_id}),
+            contentType:'application/json;charset=UTF-8',
+            success:function(data){
+                if(data.code == 1)
+                    $.alert({
+                       type:'green',
+                       title:'系统提示',
+                       content: data.message,
+                       onClose:function(){
+
+                       }
+                   })
+
+            },
+            error:function(){
+                $.alert({
+                   type:'red',
+                   title:'系统提示',
+                   content: '系统错误,请联系管理员',
+                   onClose:function(){
+
+                   }
+               })
+            }
+        })
+    }
+{% endblock %}

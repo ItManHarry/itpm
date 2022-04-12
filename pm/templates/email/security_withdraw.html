@@ -1,0 +1,21 @@
+<h5 style="color:cornflowerblue;font-family:'Microsoft YaHei'">
+    {{employee.name}}申请的安保权限({{security.name}})已到期，请及时取消该人员的{{security.name}}权限。
+</h5>
+<table width="50%" cellspacing="0" cellpadding="0" style="border:1px solid #ccc;border-collapse:collapse">
+    <thead>
+        <tr>
+            <th style="border:1px solid #ccc;background-color:cornflowerblue;color:#333;font-family:'Microsoft YaHei'">使用人</th>
+            <th style="border:1px solid #ccc;background-color:cornflowerblue;color:#333;font-family:'Microsoft YaHei'">安保权限</th>
+            <th style="border:1px solid #ccc;background-color:cornflowerblue;color:#333;font-family:'Microsoft YaHei'">到期日期</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="border:1px solid #ccc;color:#777;font-family:'Microsoft YaHei'" align="center">{{employee.name}}</td>
+            <td style="border:1px solid #ccc;color:#777;font-family:'Microsoft YaHei'" align="center">{{security.name}}</td>
+            <td style="border:1px solid #ccc;color:#777;font-family:'Microsoft YaHei'" align="center">{{expire_date}}</td>
+        </tr>
+    </tbody>
+</table>
+<br>
+<small style="color:cornflowerblue;font-family:'Microsoft YaHei'">该邮件为系统提醒邮件，无需回复！</small>

@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block content%}
+    {% if get_flashed_messages() %}
+        {% for message in get_flashed_messages() %}
+            <i class="fa fa-warning"></i> <h2 class="text-center">{{ message }}</h2>
+        {% endfor %}
+    {% endif %}
+{% endblock %}
