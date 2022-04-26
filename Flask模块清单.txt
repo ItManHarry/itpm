@@ -36,3 +36,7 @@ pip install flask-babel
 pip install python-dateutil
 #Excel操作
 pip install excel
+#条形码
+pip install python-barcode
+#二维码
+pip install qrcode
