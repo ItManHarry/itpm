@@ -1,0 +1,38 @@
+#flask框架
+pip install flask
+#读取环境变量
+pip install python-dotenv
+#热启动
+pip install watchdog
+#表单插件
+pip install flask-wtf
+#富文本编辑
+pip install flask-ckeditor
+# 数据库orm插件sqlalchemy
+pip install flask-sqlalchemy
+#mysql数据库连接驱动
+pip install pymysql
+#oracle数据库连接驱动
+pip install cx-oracle
+# 数据库迁移插件
+pip install flask-migrate
+# 电子邮件插件
+pip install flask-mail
+#集成bootstrap-flask插件
+pip install bootstrap-flask
+#本地化日期时间插件
+pip install flask-moment
+#授权插件
+pip install flask-login
+#excel插件
+pip install flask-excel
+#图片上传插件
+pip install flask-dropzone
+#定时任务插件
+pip install flask-apscheduler
+#国际化插件
+pip install flask-babel
+#python日期库
+pip install python-dateutil
+#Excel操作
+pip install excel
