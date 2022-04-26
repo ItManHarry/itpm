@@ -3,7 +3,7 @@
 '''
 from flask import Blueprint, render_template, request, current_app, flash, redirect, url_for, jsonify, session
 from flask_login import login_required, current_user
-from pm.models import BizDepartment, BizCompany, BizEnterprise
+from pm.models import BizDepartment, BizCompany, BizEnterprise, RelDepartment
 from pm.plugins import db
 from pm.forms.biz.organization.department import DepartmentSearchForm, DepartmentForm
 from pm.decorators import log_record
@@ -48,146 +48,66 @@ def index():
 def add():
     print('Request method is : ', request.method)
     form = DepartmentForm()
-    # 无论是GET还是POST,事业处信息都要获取
     enterprises, enterprise_options = get_enterprises()
     form.enterprise.choices = enterprise_options
-    if request.method == 'GET':
-        form.do_save.data = 0
-        current_enterprise = enterprises[0] if current_user.is_admin else current_user.company.enterprise
-        companies, company_options = get_companies(current_enterprise)
-        current_company = companies[0]
-    if request.method == 'POST':
-        '''
-            通过select change事件提交表单实现事业处、法人、上级部门的联动
-        '''
-        print('Current enterprise id is : ', form.enterprise.data)
-        enterprise_id = form.enterprise.data if form.enterprise.data else current_user.company.enterprise.id
-        current_enterprise = BizEnterprise.query.get(enterprise_id)
-        companies, company_options = get_companies(current_enterprise)
-        company_id = form.company.data if form.company.data else current_user.company.id
-        company = BizCompany.query.get(company_id)
-        current_company = company if company.enterprise.id == current_enterprise.id else companies[0]
-        if form.do_save.data == '1':
-            print('执行check...')
-            code = form.code.data.strip()
-            name = form.name.data.strip()
-            check_ok = True
-            if code:
-                if BizDepartment.query.with_parent(current_company).filter_by(code=form.code.data.lower()).first():
-                    check_ok = False
-                    flash('部门代码已存在!')
-            else:
-                check_ok = False
-                flash('部门代码为空!')
-            if name:
-                if BizDepartment.query.with_parent(current_company).filter_by(name=form.name.data).first():
-                    check_ok = False
-                    flash('部门名称已存在!')
-            else:
-                check_ok = False
-                flash('部门名称为空!')
-            if check_ok:
-                print('数据库保存。。。')
-                department = BizDepartment(
-                    id=uuid.uuid4().hex,
-                    code=form.code.data.lower(),
-                    name=form.name.data,
-                    company_id=form.company.data if current_user.is_admin else current_user.company.id,
-                    create_id=current_user.id
-                )
-                db.session.add(department)
-                db.session.commit()
-                has_parent = form.has_parent.data
-                if has_parent and form.parent.data is not None:
-                    department.set_parent_department(BizDepartment.query.get(form.parent.data))
-                flash('部门信息添加成功！')
-                return redirect(url_for('.index'))
-    form.company.choices = company_options
-    departments = BizDepartment.query.with_parent(current_company).order_by(BizDepartment.code).all()
-    department_list = []
-    for department in departments:
-        department_list.append((department.id, department.name))
-    form.parent.choices = department_list
+    if not current_user.is_admin:
+        form.enterprise.data = current_user.company.enterprise.id
+        form.company_id.data = current_user.company.id
+        form.company.data = current_user.company.name
+    if form.validate_on_submit():
+        department = BizDepartment(
+            id=uuid.uuid4().hex,
+            code=form.code.data.lower(),
+            name=form.name.data,
+            company_id=form.company_id.data if current_user.is_admin else current_user.company.id,
+            create_id=current_user.id
+        )
+        db.session.add(department)
+        db.session.commit()
+        has_parent = form.has_parent.data
+        if has_parent and form.parent_id.data is not None:
+            department.set_parent_department(BizDepartment.query.get(form.parent_id.data))
+        flash('部门信息添加成功！')
+        return redirect(url_for('.index'))
     return render_template('biz/organization/department/add.html', form=form)
 @bp_department.route('/edit/<id>', methods=['GET', 'POST'])
 @login_required
 @log_record('修改部门信息')
 def edit(id):
     form = DepartmentForm()
-    edit_department = BizDepartment.query.get_or_404(id)
-    '''
-        设置上级部门下拉列表
-        注:上级部门下拉列表需剔除当前部门及子部门
-    '''
-    self_and_children = [edit_department.id]
-    get_child_departments(edit_department, self_and_children)  # 递归获取子部门及子子部门
-    print('Self and child department ids : ', self_and_children)
-    departments = BizDepartment.query.with_parent(edit_department.company).order_by(BizDepartment.code).all()
-    department_list = []
-    for department in departments:
-        if department.id not in self_and_children:
-            department_list.append((department.id, department.name))
-    form.parent.choices = department_list
-    '''enterprises, enterprise_options = get_enterprises()
+    enterprises, enterprise_options = get_enterprises()
     form.enterprise.choices = enterprise_options
-    form.company.choices = get_companies(edit_department.company.enterprise)[1]
-    '''
-    print('Edit department request method : ', request.method)
+    department = BizDepartment.query.get_or_404(id)
     if request.method == 'GET':
-        form.id.data = edit_department.id
-        form.code.data = edit_department.code
-        form.name.data = edit_department.name
-        # form.company.data = edit_department.company.id
-        # form.enterprise.data = edit_department.company.enterprise.id
-        form.parent.data = edit_department.get_parent_department.id if edit_department.get_parent_department else ''
-    if request.method == 'POST':
-        new_code = form.code.data.strip()
-        new_name = form.name.data.strip()
-        check_ok = True
-        if new_code:
-            old_code = edit_department.code
-            codes = []
-            all_departments = BizDepartment.query.with_parent(edit_department.company).all()
-            for department in all_departments:
-                codes.append(department.code)
-            # 剔除未更新前的部门代码
-            codes.remove(old_code)
-            # Check新的部门代码是否已经存在
-            if new_code in codes:
-                check_ok = False
-                flash('部门代码已存在!')
+        form.id.data = department.id
+        form.code.data = department.code
+        form.name.data = department.name
+        form.enterprise.data = department.company.enterprise.id
+        form.company_id.data = department.company.id
+        form.company.data = department.company.name
+        parent = department.get_parent_department
+        if parent:
+            form.has_parent.data = True
+            form.parent_id.data = parent.id
+            form.parent.data = parent.name
+    if form.validate_on_submit():
+        department.code = form.code.data
+        department.name = form.name.data
+        department.company_id = form.company_id.data
+        department.update_id = current_user.id
+        department.updatetime_utc = datetime.utcfromtimestamp(time.time())
+        department.updatetime_loc = datetime.fromtimestamp(time.time())
+        db.session.commit()
+        has_parent = form.has_parent.data
+        if has_parent and form.parent_id.data is not None:
+            department.set_parent_department(BizDepartment.query.get(form.parent_id.data))
         else:
-            check_ok = False
-            flash('部门代码为空!')
-        if new_name:
-            old_name = edit_department.name
-            names = []
-            for department in BizDepartment.query.with_parent(edit_department.company).all():
-                names.append(department.name)
-            # 剔除未更新前的部门名称
-            names.remove(old_name)
-            # Check新的部门名称是否已经存在
-            if new_name in names:
-                check_ok = False
-                flash('部门名称已存在!')
-        else:
-            check_ok = False
-            flash('部门名称为空!')
-        if check_ok:
-            edit_department.code = form.code.data
-            edit_department.name = form.name.data
-            # edit_department.company_id = form.company.data
-            edit_department.update_id = current_user.id
-            edit_department.updatetime_utc = datetime.utcfromtimestamp(time.time())
-            edit_department.updatetime_loc = datetime.fromtimestamp(time.time())
+            print('删除上级部门更新')
+            parent_department = RelDepartment.query.filter_by(child_department_id=id).first()
+            db.session.delete(parent_department)
             db.session.commit()
-            has_parent = form.has_parent.data
-            if has_parent and form.parent.data is not None:
-                edit_department.set_parent_department(BizDepartment.query.get(form.parent.data))
-            else:
-                print('不执行上级部门更新')
-            flash('部门信息更新成功！')
-            return redirect(url_for('.index', id=form.id.data))
+        flash('部门信息更新成功！')
+        return redirect(url_for('.index', id=form.id.data))
     return render_template('biz/organization/department/edit.html', form=form)
 # 递归获取子部门(多级部门)
 def get_child_departments(parent, children):
@@ -214,3 +134,34 @@ def get_companies(enterprise):
     for company in companies:
         company_options.append((company.id, company.name))
     return (companies, company_options)
+@bp_department.route('/companies/<enterprise_id>', methods = ['POST'])
+@log_record('获取事业处法人信息')
+def get_enterprise_companies(enterprise_id):
+    all_companies = [('000000', '---请选择---')]
+    enterprise = BizEnterprise.query.get(enterprise_id)
+    print('Enterprise is : ', enterprise.name)
+    _, companies = get_companies(enterprise)
+    print('Companies are : ', companies)
+    all_companies += companies
+    return jsonify(all_companies)
+@bp_department.route('/parents', methods = ['POST'])
+@log_record('获取法人部门信息信息')
+def get_parents():
+    parent_departments = [('000000', '---请选择---')]
+    params = request.get_json()
+    action = params['action']
+    company = BizCompany.query.get(params['company_id'])
+    if action == 'add':
+        departments = BizDepartment.query.with_parent(company).order_by(BizDepartment.code).all()
+    if action == 'update':
+        self_and_children = [params['department_id']]
+        edit_department = BizDepartment.query.get(params['department_id'])
+        get_child_departments(edit_department, self_and_children)  # 递归获取子部门及子子部门
+        print('Self and child department ids : ', self_and_children)
+        departments = BizDepartment.query.with_parent(edit_department.company).order_by(BizDepartment.code).all()
+        for department in departments:
+            if department.id not in self_and_children:
+                parent_departments.append((department.id, department.name))
+    for department in departments:
+        parent_departments.append((department.id, department.name))
+    return jsonify(parent_departments)

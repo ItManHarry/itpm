@@ -6,7 +6,7 @@ from datetime import datetime
 from flask import Blueprint, render_template, request, current_app, flash, redirect, url_for, jsonify, session
 from flask_login import login_required, current_user
 from pm.forms.system.role import RoleSearchForm, RoleForm
-from pm.models import SysRole, SysMenu
+from pm.models import SysRole, SysMenu, BizCompany
 from pm.decorators import log_record
 from pm.plugins import db
 bp_role = Blueprint('role', __name__)
@@ -27,7 +27,7 @@ def index():
         name = form.name.data
         session['role_view_search_name'] = name
     per_page = current_app.config['ITEM_COUNT_PER_PAGE']
-    pagination = SysRole.query.filter(SysRole.name.like('%' + name + '%'), SysRole.name != 'Administrator', SysRole.company_id == current_user.company_id).order_by(SysRole.name.desc()).paginate(page, per_page)
+    pagination = SysRole.query.filter(SysRole.name.like('%' + name + '%')).order_by(SysRole.name.desc()).paginate(page, per_page) if current_user.is_admin else SysRole.query.filter(SysRole.name.like('%' + name + '%'), SysRole.name != 'Administrator', SysRole.company_id == current_user.company_id).order_by(SysRole.name.desc()).paginate(page, per_page)
     roles = pagination.items
     return render_template('system/role/index.html', form=form, pagination=pagination, roles=roles)
 @bp_role.route('/add', methods=['GET', 'POST'])
@@ -35,8 +35,14 @@ def index():
 @log_record('新增系统角色')
 def add():
     form = RoleForm()
+    form.company.choices = [(company.id, company.name) for company in BizCompany.query.order_by(BizCompany.code).all()]
     if form.validate_on_submit():
-        role = SysRole(id=uuid.uuid4().hex, name=form.name.data, create_id=current_user.id, company_id=current_user.company_id)
+        role = SysRole(
+            id=uuid.uuid4().hex,
+            name=form.name.data,
+            create_id=current_user.id,
+            company_id=current_user.company_id if current_user.company_id else form.company.data
+        )
         db.session.add(role)
         db.session.commit()
         flash('角色添加成功！')
@@ -47,13 +53,15 @@ def add():
 @log_record('修改系统角色')
 def edit(id):
     form = RoleForm()
+    form.company.choices = [(company.id, company.name) for company in BizCompany.query.order_by(BizCompany.code).all()]
     role = SysRole.query.get_or_404(id)
     if request.method == 'GET':
         form.name.data = role.name
+        form.company.data = role.company_id if role.company_id else ''
         form.id.data = role.id
     if form.validate_on_submit():
         role.name = form.name.data
-        role.company_id = current_user.company_id
+        role.company_id = '' if role.name == 'Administrator' else current_user.company_id if current_user.company_id else form.company.data
         role.update_id = current_user.id
         role.updatetime_utc = datetime.utcfromtimestamp(time.time())
         role.updatetime_loc = datetime.fromtimestamp(time.time())
@@ -65,8 +73,13 @@ def edit(id):
 @login_required
 def menus(id):
     all_menus = []
-    for menu in SysMenu.query.order_by(SysMenu.code, SysMenu.order_by).all():
-        all_menus.append((menu.id, menu.module.name+' / '+menu.name))
+    # 非管理员只能分发自己已分配的权限
+    if current_user.is_admin:
+        for menu in SysMenu.query.order_by(SysMenu.code, SysMenu.order_by).all():
+            all_menus.append((menu.id, menu.module.name + ' / ' + menu.name))
+    else:
+        for menu in SysMenu.query.filter(SysMenu.code.in_(current_user.menus)).order_by(SysMenu.code, SysMenu.order_by).all():
+            all_menus.append((menu.id, menu.module.name+' / '+menu.name))
     #print('All menus : ', all_menus)
     role = SysRole.query.get_or_404(id)
     authed_menus = []

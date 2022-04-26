@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, HiddenField
+from wtforms import StringField, HiddenField, SelectField
 from wtforms.validators import DataRequired
 from wtforms import ValidationError, validators
 from pm.models import SysRole
@@ -8,6 +8,7 @@ class RoleSearchForm(FlaskForm):
 class RoleForm(FlaskForm):
     id = HiddenField()
     name = StringField('角色名称', validators=[DataRequired('请输入角色名称！')])
+    company = SelectField('法人', [validators.optional()], choices=[])
 
     def validate_name(self, field):
         if self.id.data == '':

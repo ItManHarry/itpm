@@ -12,6 +12,12 @@
                 <small class="text-danger">{{message}}</small>
             {% endfor %}
         </div>
+        {%if not current_user.company%}
+        <div class="form-group col-md-6">
+            {{form.company.label}}
+            {{form.company(class='form-control')}}
+        </div>
+        {%endif%}
     </div>
     <div class="form-row">
         <div class="form-group col-md-6">

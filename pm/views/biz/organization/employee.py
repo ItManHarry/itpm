@@ -31,12 +31,11 @@ def index():
         session['employee_view_search_name'] = name.strip()
     session['employee_current_page'] = page
     per_page = current_app.config['ITEM_COUNT_PER_PAGE']
-    pagination = BizEmployee.query.filter(BizEmployee.code.like('%' + code.strip() + '%'), BizEmployee.name.like('%' + name.strip() + '%')).order_by( BizEmployee.code).paginate(page, per_page)
-    '''if current_user.is_admin:
+    # pagination = BizEmployee.query.filter(BizEmployee.code.like('%' + code.strip() + '%'), BizEmployee.name.like('%' + name.strip() + '%')).order_by(BizEmployee.name).paginate(page, per_page)
+    if current_user.is_admin:
         pagination = BizEmployee.query.filter(BizEmployee.code.like('%'+code.strip()+'%'), BizEmployee.name.like('%'+name.strip()+'%')).order_by(BizEmployee.code).paginate(page, per_page)
     else:
         pagination = BizEmployee.query.with_parent(current_user.company).filter(BizEmployee.code.like('%' + code.strip() + '%'), BizEmployee.name.like('%' + name.strip() + '%')).order_by(BizEmployee.code).paginate(page, per_page)
-    '''
     employees = pagination.items
     return render_template('biz/organization/employee/index.html', form=form, pagination=pagination, employees=employees)
 @bp_employee.route('/add', methods=['GET', 'POST'])
@@ -133,9 +132,21 @@ def export(sign):
     except KeyError:
         beforeSearch = True
     if beforeSearch:
-        employees = BizEmployee.query.order_by(BizEmployee.code).all() if sign == 0 else BizEmployee.query.order_by(BizEmployee.code).paginate(page, per_page).items
+        if current_user.is_admin:
+            employees = BizEmployee.query.order_by(BizEmployee.code).all() if sign == 0 else BizEmployee.query.order_by(BizEmployee.code).paginate(page, per_page).items
+        else:
+            employees = BizEmployee.query.with_parent(current_user.company).order_by(BizEmployee.code).all() if sign == 0 else BizEmployee.query.with_parent(current_user.company).order_by(BizEmployee.code).paginate(page, per_page).items
     else:
-        employees = BizEmployee.query.filter(BizEmployee.code.like('%' + session['employee_view_search_code'] + '%'), BizEmployee.name.like('%' + session['employee_view_search_name'] + '%')).order_by(BizEmployee.code).all() if sign == 0 else BizEmployee.query.filter(BizEmployee.code.like('%' + session['employee_view_search_code'] + '%'), BizEmployee.name.like('%' + session['employee_view_search_name'] + '%')).order_by(BizEmployee.code).paginate(page, per_page).items
+        if current_user.is_admin:
+            employees = BizEmployee.query.filter(BizEmployee.code.like('%' + session['employee_view_search_code'] + '%'), BizEmployee.name.like('%' + session['employee_view_search_name'] + '%')).order_by(BizEmployee.code).all() if sign == 0 else BizEmployee.query.filter(BizEmployee.code.like('%' + session['employee_view_search_code'] + '%'), BizEmployee.name.like('%' + session['employee_view_search_name'] + '%')).order_by(BizEmployee.code).paginate(page, per_page).items
+        else:
+            employees = BizEmployee.query.with_parent(current_user.company).filter(
+                BizEmployee.code.like('%' + session['employee_view_search_code'] + '%'),
+                BizEmployee.name.like('%' + session['employee_view_search_name'] + '%')).order_by(
+                BizEmployee.code).all() if sign == 0 else BizEmployee.query.with_parent(current_user.company).filter(
+                BizEmployee.code.like('%' + session['employee_view_search_code'] + '%'),
+                BizEmployee.name.like('%' + session['employee_view_search_name'] + '%')).order_by(
+                BizEmployee.code).paginate(page, per_page).items
     for employee in employees:
         data_body.append([employee.company.name, employee.code, employee.name, employee.department.name, employee.email if employee.email else '-', employee.phone if employee.phone else '-', '在职' if employee.active else '离职'])
     data = data_header + data_body

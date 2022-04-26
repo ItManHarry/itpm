@@ -42,7 +42,7 @@ class SysUser(BaseModel, db.Model, UserMixin):
     @property
     def menus(self):
         ms = self.role.menus
-        return [menu.code for menu in ms]
+        return [menu.code for menu in ms if menu.active]
     # 用户菜单权限(返回:模块ID-菜单List字典)
     @property
     def authed_menus(self):
@@ -51,9 +51,10 @@ class SysUser(BaseModel, db.Model, UserMixin):
         menus = self.role.menus
         menu_ids = []
         for menu in menus:
-            menu_ids.append(menu.id)
+            if menu.active:
+                menu_ids.append(menu.id)
         for module in modules:
-            module_menu[module.id] = SysMenu.query.filter(SysMenu.module_id == module.id).filter(SysMenu.id.in_(menu_ids)).order_by(SysMenu.order_by).all()
+            module_menu[module.id] = SysMenu.query.filter(SysMenu.module_id == module.id, SysMenu.id.in_(menu_ids)).order_by(SysMenu.order_by).all()
         return module_menu
     # 用户模块权限
     @property
@@ -68,7 +69,7 @@ class SysUser(BaseModel, db.Model, UserMixin):
             '''
             module_ids = []
             for menu in menus:
-                if menu.module_id not in module_ids:
+                if menu.active and menu.module_id not in module_ids:
                     module_ids.append(menu.module_id)
             '''
             重新查询并排序
